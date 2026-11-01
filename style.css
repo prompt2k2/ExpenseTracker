@@ -135,6 +135,8 @@ legend { font-size: .875rem; color: var(--muted); padding: 0 4px; }
 .btn:disabled { opacity: .5; cursor: default; }
 .actions { display: flex; gap: 8px; margin-top: 4px; }
 .actions.wrap { flex-wrap: wrap; }
+.scan-actions { margin: 0 0 12px; }
+.scan-actions .btn:first-child { flex: 1; }
 .actions .primary { flex: 1; }
 .chip { font: inherit; font-size: .85rem; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 99px; padding: 4px 12px; cursor: pointer; }
 

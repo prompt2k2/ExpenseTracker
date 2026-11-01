@@ -8,7 +8,7 @@
   'use strict';
 
   // OAuth client ID from Google Cloud (not a secret). Empty hides the Drive option.
-  var CLIENT_ID = '';
+  var CLIENT_ID = '424254925691-bg03a3mor58i9u3k89pcffu4u0g6ersp.apps.googleusercontent.com';
   var SCOPE = 'https://www.googleapis.com/auth/drive.file';
   var FILE_NAME = 'spend-log-data.json';
   var TOMBSTONE_DAYS = 365;

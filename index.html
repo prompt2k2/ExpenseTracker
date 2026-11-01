@@ -43,11 +43,13 @@
 
   <!-- Add / edit -->
   <section class="card" id="formCard">
-    <div class="row-between">
-      <h2 id="formTitle">Add spending</h2>
-      <button type="button" class="btn ghost" id="scanBtn">📷 Scan receipt</button>
+    <h2 id="formTitle">Add spending</h2>
+    <div class="actions scan-actions">
+      <button type="button" class="btn" id="scanCameraBtn">📷 Take photo of receipt</button>
+      <button type="button" class="btn ghost" id="scanPickBtn">Choose photo</button>
     </div>
-    <input type="file" id="scanInput" accept="image/*" hidden>
+    <input type="file" id="scanCamera" accept="image/*" capture="environment" hidden>
+    <input type="file" id="scanPick" accept="image/*" hidden>
     <p class="status" id="scanStatus" hidden></p>
     <form id="form" autocomplete="off">
       <div class="grid2">

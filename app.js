@@ -589,7 +589,7 @@
 
   function onScan(file) {
     if (!file) return;
-    $('scanBtn').disabled = true;
+    $('scanCameraBtn').disabled = $('scanPickBtn').disabled = true;
     status('Preparing photo…');
     var canvas;
     prepareImage(file).then(function (c) {
@@ -620,8 +620,8 @@
     }).catch(function (err) {
       status('Scanning failed: ' + (err && err.message ? err.message : err) + '. You can still type it in.');
     }).then(function () {
-      $('scanBtn').disabled = false;
-      $('scanInput').value = '';
+      $('scanCameraBtn').disabled = $('scanPickBtn').disabled = false;
+      $('scanCamera').value = $('scanPick').value = '';
     });
   }
 
@@ -937,8 +937,11 @@
   $('cancelEdit').addEventListener('click', function () { resetForm(); });
   $('deleteBtn').addEventListener('click', onDelete);
   $('filterChip').addEventListener('click', function () { setFilter(null); });
-  $('scanBtn').addEventListener('click', function () { $('scanInput').click(); });
-  $('scanInput').addEventListener('change', function () { onScan(this.files[0]); });
+  // Two inputs: newer Android photo pickers have no camera option, so "Take photo" asks for the camera directly.
+  $('scanCameraBtn').addEventListener('click', function () { $('scanCamera').click(); });
+  $('scanPickBtn').addEventListener('click', function () { $('scanPick').click(); });
+  $('scanCamera').addEventListener('change', function () { onScan(this.files[0]); });
+  $('scanPick').addEventListener('change', function () { onScan(this.files[0]); });
   $('copyTotals').addEventListener('click', copyTotals);
   $('exportCsv').addEventListener('click', exportCsv);
   $('openSetup').addEventListener('click', function () { openSetup(false); });

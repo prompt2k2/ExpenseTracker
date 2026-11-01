@@ -176,7 +176,8 @@ try {
     const img = path.join(outDir, 'receipt.jpg');
     await shot.screenshot({ path: img, type: 'jpeg', quality: 60 });
     await shot.close();
-    await page.setInputFiles('#scanInput', img);
+    await page.setInputFiles('#scanPick', img);
+    assert.strictEqual(await page.getAttribute('#scanCamera', 'capture'), 'environment');
     await page.waitForFunction(() => /Found|Could not|failed/.test(document.getElementById('scanStatus').textContent), null, { timeout: 90000 });
     assert.match(await text('#scanStatus'), /^Found/);
     assert.strictEqual(await page.inputValue('#fAmount'), '10.98');
