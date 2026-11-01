@@ -984,6 +984,8 @@
   $('driveSetup').hidden = !(window.SPENDLOG_CLIENT_ID || SpendSync.CLIENT_ID);
   drive.start();
 
+  window.SPENDLOG_READY = true;
+
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }

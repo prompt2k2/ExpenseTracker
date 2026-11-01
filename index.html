@@ -204,6 +204,32 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+<div class="load-error" id="loadError" hidden>
+  <p>Spend Log did not load properly. Your entries are safe.</p>
+  <button class="btn primary" type="button" id="reloadApp">Reload app</button>
+</div>
+<script>
+  // If anything fails while starting, offer a clean reload: clear cached app files (never your data) and fetch fresh ones.
+  (function () {
+    var shown = false;
+    function show() {
+      if (shown) return; shown = true;
+      var box = document.getElementById('loadError'); if (box) box.hidden = false;
+    }
+    window.addEventListener('error', function (e) { if (!window.SPENDLOG_READY) show(); });
+    window.addEventListener('load', function () { setTimeout(function () { if (!window.SPENDLOG_READY) show(); }, 3000); });
+    document.getElementById('reloadApp').addEventListener('click', function () {
+      var jobs = [];
+      if (window.caches) jobs.push(caches.keys().then(function (ks) {
+        return Promise.all(ks.filter(function (k) { return k !== 'spendlog-vendor'; }).map(function (k) { return caches.delete(k); }));
+      }));
+      if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+        return Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }));
+      Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+    });
+  })();
+</script>
 <script src="parse.js"></script>
 <script src="sync.js"></script>
 <script src="app.js"></script>

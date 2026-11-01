@@ -10,6 +10,11 @@ import { chromium } from 'playwright-core';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'test', 'output');
 fs.mkdirSync(outDir, { recursive: true });
+// Previous release's app.js, to recreate a phone holding a mix of old and new files.
+if (!fs.existsSync(path.join(outDir, 'old-app.js'))) {
+  const { execSync } = await import('node:child_process');
+  fs.writeFileSync(path.join(outDir, 'old-app.js'), execSync('git show 403db84:app.js', { cwd: root }));
+}
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png',
   '.webmanifest': 'application/manifest+json', '.gz': 'application/gzip', '.json': 'application/json' };
 
@@ -207,6 +212,23 @@ try {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, `page scrolls sideways by ${overflow}px`);
     await page.screenshot({ path: path.join(outDir, 'phone.png'), fullPage: true });
+  });
+
+  await check('a mixed-up load shows Reload app, which recovers', async () => {
+    const c2 = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    let broken = true;
+    const oldApp = fs.readFileSync(path.join(outDir, 'old-app.js'), 'utf8');
+    await c2.route('**/app.js', r => broken ? r.fulfill({ contentType: 'text/javascript', body: oldApp }) : r.continue());
+    const p2 = await c2.newPage();
+    await p2.goto(base);
+    await p2.locator('#reloadApp').waitFor({ state: 'visible', timeout: 6000 });
+    broken = false;
+    await p2.click('#reloadApp');
+    await p2.waitForFunction(() => window.SPENDLOG_READY === true);
+    assert.ok(!(await p2.locator('#loadError').isVisible()));
+    await p2.click('#openSetup');
+    assert.ok(await p2.locator('#setup').isVisible());
+    await c2.close();
   });
 
   await check('no console errors', async () => {

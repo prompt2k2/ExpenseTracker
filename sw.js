@@ -1,10 +1,10 @@
 /* Offline support. Bump VERSION on every release so installed copies pick up new files. */
-var VERSION = 'spendlog-2026-11-01c';
+var VERSION = 'spendlog-2026-11-01d';
 var SHELL = ['./', 'index.html', 'style.css', 'app.js', 'parse.js', 'sync.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL.map(function (u) { return new Request(u, { cache: 'reload' }); })); }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {
@@ -30,12 +30,20 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // App shell: answer from cache straight away, refresh it in the background.
+  // App shell: network first so every file comes from the same release; the cache is only for offline
+  // or a very slow connection. Skipping the browser's HTTP cache stops old and new files mixing.
   e.respondWith(caches.open(VERSION).then(function (c) {
-    return c.match(req, { ignoreSearch: true }).then(function (hit) {
-      var net = fetch(req).then(function (res) { if (res.ok) c.put(req, res.clone()); return res; })
-        .catch(function () { return hit || (req.mode === 'navigate' ? c.match('index.html') : Response.error()); });
-      return hit || net;
+    var fromCache = function () {
+      return c.match(req, { ignoreSearch: true }).then(function (hit) {
+        return hit || (req.mode === 'navigate' ? c.match('index.html') : undefined);
+      });
+    };
+    var net = fetch(req, { cache: 'no-cache' }).then(function (res) {
+      if (res.ok) c.put(req, res.clone());
+      return res;
     });
+    var slow = new Promise(function (res) { setTimeout(res, 4000); }).then(fromCache);
+    return Promise.race([net, slow.then(function (hit) { return hit || net; })])
+      .catch(function () { return fromCache().then(function (hit) { return hit || Response.error(); }); });
   }));
 });

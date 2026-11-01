@@ -183,6 +183,12 @@ legend { font-size: .875rem; color: var(--muted); padding: 0 4px; }
 
 .foot { text-align: center; margin-top: 8px; }
 
+.load-error {
+  position: fixed; inset: auto 16px calc(16px + env(safe-area-inset-bottom)); z-index: 20;
+  background: var(--card); border: 2px solid var(--bad); border-radius: 12px; padding: 14px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.25);
+}
+.load-error .btn { width: 100%; }
 .toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
