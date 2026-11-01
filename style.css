@@ -183,6 +183,25 @@ legend { font-size: .875rem; color: var(--muted); padding: 0 4px; }
 
 .foot { text-align: center; margin-top: 8px; }
 
+/* Advice */
+.advice { list-style: none; padding: 0; margin: 0; }
+.advice-item { border-top: 1px solid var(--line); padding: 12px 0; }
+.advice-item:first-child { border-top: 0; padding-top: 4px; }
+.advice-head { margin-bottom: 4px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 700; color: var(--muted); }
+.badge-icon { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: .7rem; color: #fff; background: var(--muted); }
+.lvl-over .badge { color: var(--bad); }
+.lvl-over .badge-icon { background: var(--bad); }
+.lvl-warn .badge { color: var(--warn); }
+.lvl-warn .badge-icon { background: var(--warn); }
+.lvl-save .badge { color: var(--ok); }
+.lvl-save .badge-icon { background: var(--ok); }
+.lvl-change .badge, .lvl-spike .badge, .lvl-trend .badge { color: var(--accent); }
+.lvl-change .badge-icon, .lvl-spike .badge-icon, .lvl-trend .badge-icon { background: var(--accent); color: var(--accent-ink); }
+.advice-title { font-weight: 600; margin: 0 0 2px; }
+.advice-text { font-size: .9rem; color: var(--muted); margin: 0 0 8px; }
+.advice-none { color: var(--ok); font-weight: 600; padding: 4px 0; }
+
 /* Reports */
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
 .seg button { font: inherit; font-size: .85rem; font-weight: 600; border: 0; background: none; color: var(--muted); padding: 6px 14px; border-radius: 8px; cursor: pointer; min-height: 36px; }

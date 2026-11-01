@@ -88,11 +88,11 @@
     catch (e) { toast('Could not save. Storage may be full or blocked.'); return false; }
   }
   var toastTimer;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = $('toast');
     t.textContent = msg; t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 2800);
+    toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2800);
   }
 
   // ---------- state ----------
@@ -197,6 +197,7 @@
     var s = monthSummary(viewMonth);
     var pace = monthPace(viewMonth);
     renderSummary(s, pace);
+    renderAdvice();
     renderDayCats(s, pace);
     renderBills(s);
     renderLog(s);
@@ -350,6 +351,79 @@
     filterCat = n;
     render();
     if (n) $('log').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- advice ----------
+  var KEY_ADVICE_HIDDEN = 'spendlog.adviceHidden'; // {advice key: month it was hidden in}
+  var adviceAll = false;
+  var ADVICE_ICONS = { over: '!', warn: '▲', change: '£', spike: '↑', save: '↓', trend: '↗' };
+
+  function renderAdvice() {
+    var card = $('adviceCard'), cur = monthOf(todayISO());
+    // Advice is about now, so it only shows on the current month.
+    if (viewMonth !== cur || !items.length) { card.hidden = true; return; }
+    var hidden = load(KEY_ADVICE_HIDDEN, {});
+    var list = SpendAdvice.advise(config, items, todayISO()).filter(function (a) { return hidden[a.key] !== cur; });
+    var ul = $('adviceList');
+    ul.textContent = '';
+    var finished = 0;
+    for (var k = 1; k <= 3; k++) {
+      var m = shiftMonth(cur, -k);
+      if (items.some(function (x) { return monthOf(x.date) === m; })) finished++;
+    }
+    $('adviceFoot').textContent = finished < 2
+      ? 'Suggestions based on your spending trends start after 2 full months of logging.'
+      : 'Based on your last ' + Math.min(3, finished) + ' months. Hidden advice comes back next month if it still applies.';
+    card.hidden = !list.length && finished >= 2;
+    if (!list.length) {
+      ul.appendChild(el('li', 'advice-none', 'All on track. No warnings this month.'));
+      $('adviceMore').hidden = true;
+      return;
+    }
+    var shown = adviceAll ? list : list.slice(0, 3);
+    shown.forEach(function (a) {
+      var li = el('li', 'advice-item lvl-' + a.level);
+      var head = el('div', 'advice-head');
+      var badge = el('span', 'badge');
+      badge.appendChild(el('span', 'badge-icon', ADVICE_ICONS[a.level]));
+      badge.appendChild(document.createTextNode(a.label));
+      head.appendChild(badge);
+      li.appendChild(head);
+      li.appendChild(el('p', 'advice-title', a.title));
+      li.appendChild(el('p', 'advice-text', a.text));
+      var acts = el('div', 'actions wrap');
+      if (a.action) {
+        var b = el('button', 'btn small primary', a.action.label);
+        b.type = 'button';
+        b.addEventListener('click', function () { applyCap(a.action.category, a.action.cap); });
+        acts.appendChild(b);
+      }
+      var hide = el('button', 'btn small ghost', 'Hide this month');
+      hide.type = 'button';
+      hide.addEventListener('click', function () {
+        var h = load(KEY_ADVICE_HIDDEN, {});
+        Object.keys(h).forEach(function (key) { if (h[key] !== cur) delete h[key]; });
+        h[a.key] = cur;
+        store(KEY_ADVICE_HIDDEN, h);
+        renderAdvice();
+      });
+      acts.appendChild(hide);
+      li.appendChild(acts);
+      ul.appendChild(li);
+    });
+    var more = $('adviceMore');
+    more.hidden = list.length <= 3;
+    more.textContent = adviceAll ? 'Show fewer' : 'Show all ' + list.length;
+  }
+
+  function applyCap(name, cap) {
+    var c = config.categories.find(function (x) { return x.n === name; });
+    if (!c) return;
+    if (!confirm('Change the ' + name + ' cap from ' + moneyShort(capPence(c)) + ' to ' + moneyShort(Math.round(cap * 100)) + ' a month?')) return;
+    c.cap = cap;
+    saveConfig();
+    render();
+    toast(name + ' cap is now ' + moneyShort(Math.round(cap * 100)) + '. You can change it again in Setup.');
   }
 
   // ---------- reports ----------
@@ -713,7 +787,10 @@
       toast((wasEdit ? 'Updated' : 'Saved') + ' to ' + monthLabel(monthOf(date)));
     } else {
       var r = monthSummary(viewMonth).rows.find(function (row) { return row.n === cat; });
-      toast((wasEdit ? 'Updated. ' : 'Saved. ') + (r ? (r.left >= 0 ? money(r.left) + ' left in ' + cat : cat + ' is ' + money(-r.left) + ' over') : ''));
+      var pace = viewMonth === monthOf(todayISO()) && SpendAdvice.advise(config, items, todayISO())
+        .find(function (a) { return a.key === 'pace:' + cat; });
+      var msg = r ? cat + ':' + SpendAdvice.afterSave(r.cap, r.spent, pace ? pace.projected : 0) : '';
+      toast((wasEdit ? 'Updated. ' : 'Saved. ') + msg, msg.indexOf('⚠') > -1 ? 6000 : 2800);
     }
     resetForm(date);
     render();
@@ -1169,6 +1246,7 @@
   $('scanPick').addEventListener('change', function () { onScan(this.files[0]); });
   $('copyTotals').addEventListener('click', copyTotals);
   $('exportCsv').addEventListener('click', exportCsv);
+  $('adviceMore').addEventListener('click', function () { adviceAll = !adviceAll; renderAdvice(); });
   $('repMonthTab').addEventListener('click', function () { repTab = 'month'; render(); });
   $('repYearTab').addEventListener('click', function () { repTab = 'year'; repYear = +viewMonth.slice(0, 4); render(); });
   $('prevYear').addEventListener('click', function () { repYear--; render(); });

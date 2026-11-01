@@ -1,6 +1,6 @@
 /* Offline support. Bump VERSION on every release so installed copies pick up new files. */
-var VERSION = 'spendlog-2026-11-02a';
-var SHELL = ['./', 'index.html', 'style.css', 'app.js', 'parse.js', 'sync.js', 'manifest.webmanifest',
+var VERSION = 'spendlog-2026-11-02b';
+var SHELL = ['./', 'index.html', 'style.css', 'app.js', 'parse.js', 'sync.js', 'advice.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {

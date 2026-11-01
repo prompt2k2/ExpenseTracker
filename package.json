@@ -3,7 +3,7 @@
   "private": true,
   "description": "Tests only. The app itself has no build step.",
   "scripts": {
-    "test": "node test/parse.test.js && node test/sync.test.js",
+    "test": "node test/parse.test.js && node test/sync.test.js && node test/advice.test.js",
     "e2e": "node test/e2e.mjs && node test/drive.e2e.mjs",
     "e2e:drive": "node test/drive.e2e.mjs"
   },

@@ -12,6 +12,9 @@ It runs in the browser, works offline and installs on a phone. There is no accou
 - **Receipt scanning**: take a photo and the total, date and shop are read on the device (Tesseract.js). Check them before saving. Photos are not kept.
 - **Category guessing**: it remembers what you chose for each shop and guesses new shops from the name.
 - **Card rule** (optional): warns when a card is used for a category it should not be used for.
+- **Advice**: warns when a category is over or heading over (compared with what you usually spend by this day), flags shops you are spending more at than usual, and after 2 to 3 months suggests raising a cap that keeps going over or lowering one that stays well under. Rules are in `advice.js`; nothing leaves the device.
+- **Reports**: month (budget, spent and left per category, by card, top shops) and year to date (chart, category totals, category-by-month CSV).
+- **Google Drive sync** (optional): keeps a copy in one Drive file and merges across devices.
 - **Month tools**: **Copy totals** gives one number per category, in order, to paste into a spreadsheet column. **Export CSV** saves the month's entries.
 
 ## Using it
@@ -44,6 +47,8 @@ Settings → Pages → Deploy from a branch → `main`, folder `/ (root)`. All p
 |---|---|
 | `index.html`, `style.css` | Page and styles (light and dark) |
 | `app.js` | App logic. Storage keys `spendlog.items.v1`, `spendlog.config.v1`. Money is integer pence. |
+| `advice.js` | Spending advice rules. Also loads in Node for tests. |
+| `sync.js` | Google Drive sync and merge |
 | `parse.js` | Receipt text → total, date, shop. Also loads in Node for tests. |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Offline support and install |
 | `vendor/tesseract/` | Self-hosted Tesseract.js 5.1.1, LSTM cores and English `best_int` data (Apache-2.0) |

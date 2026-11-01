@@ -262,6 +262,33 @@ try {
     await c3.close();
   });
 
+  await check('advice warns, suggests a cap change, and can be hidden', async () => {
+    const c4 = await browser.newContext({ viewport: { width: 400, height: 860 } });
+    const mo = k => { const d = new Date(now.getFullYear(), now.getMonth() - k, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+    const it = (m, pounds, category, i) => ({ id: 'a' + i, pence: pounds * 100, date: m + '-01', merchant: 'Deliveroo', category, method: 'Debit', note: '', created: i, updated: i });
+    const seed = [it(mo(2), 80, 'Takeaways & eating out', 1), it(mo(1), 90, 'Takeaways & eating out', 2), it(mo(0), 70, 'Takeaways & eating out', 3)];
+    await c4.addInitScript(([cfg, its]) => {
+      if (!localStorage.getItem('spendlog.items.v1')) {
+        localStorage.setItem('spendlog.config.v1', cfg);
+        localStorage.setItem('spendlog.items.v1', its);
+      }
+    }, [JSON.stringify(SETUP), JSON.stringify(seed)]);
+    const p4 = await c4.newPage();
+    p4.on('dialog', d => d.accept());
+    await p4.goto(base);
+    const items = p4.locator('#adviceList .advice-item');
+    assert.ok(await p4.locator('#adviceCard').isVisible());
+    assert.match(await items.nth(0).innerText(), /Over budget[\s\S]*Takeaways & eating out is £10 over/);
+    assert.match(await items.nth(1).innerText(), /Budget check[\s\S]*over two months running/);
+    await items.first().getByRole('button', { name: 'Hide this month' }).click();
+    await p4.reload();
+    assert.ok(!(await p4.locator('#adviceList').innerText()).includes('is £10 over'), 'hidden advice should stay hidden');
+    await items.first().getByRole('button', { name: 'Raise cap to £85' }).click();
+    assert.match(await p4.locator('#dayCats').innerText(), /£70\.00 of £85/);
+    assert.match(await p4.locator('#adviceList').innerText(), /All on track/);
+    await c4.close();
+  });
+
   await check('a mixed-up load shows Reload app, which recovers', async () => {
     const c2 = await browser.newContext({ viewport: { width: 400, height: 860 } });
     let broken = true;
