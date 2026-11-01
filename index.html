@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Spend Log</title>
+  <meta name="description" content="Log spending against your monthly budget and see what is left.">
+  <meta name="theme-color" content="#1f6f5c" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14211d" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Spend Log">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header class="top">
+    <button class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+    <h1 id="monthLabel">Spend Log</h1>
+    <button class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+  </header>
+
+  <!-- Summary -->
+  <section class="card summary" aria-live="polite">
+    <p class="eyebrow">Left to spend this month</p>
+    <p class="big" id="leftBig">£0.00</p>
+    <div class="bar big-bar"><span id="leftBar"></span><i id="leftPace"></i></div>
+    <p class="muted" id="leftSub"></p>
+    <dl class="stats">
+      <div><dt>Day-to-day budget</dt><dd id="statBudget">£0</dd></div>
+      <div><dt>Spent so far</dt><dd id="statSpent">£0</dd></div>
+      <div><dt>Bills paid</dt><dd id="statBills">£0</dd></div>
+      <div id="marginWrap"><dt>Safety margin</dt><dd id="statMargin">£0</dd></div>
+    </dl>
+    <p class="note" id="summaryNote" hidden></p>
+  </section>
+
+  <!-- Add / edit -->
+  <section class="card" id="formCard">
+    <div class="row-between">
+      <h2 id="formTitle">Add spending</h2>
+      <button type="button" class="btn ghost" id="scanBtn">📷 Scan receipt</button>
+    </div>
+    <input type="file" id="scanInput" accept="image/*" hidden>
+    <p class="status" id="scanStatus" hidden></p>
+    <form id="form" autocomplete="off">
+      <div class="grid2">
+        <label>Amount (£)
+          <input id="fAmount" inputmode="decimal" placeholder="0.00" required>
+        </label>
+        <label>Date
+          <input id="fDate" type="date" required>
+        </label>
+      </div>
+      <label>Shop or payee
+        <input id="fMerchant" list="merchantList" placeholder="e.g. Tesco">
+        <datalist id="merchantList"></datalist>
+      </label>
+      <label>Budget category
+        <select id="fCategory" required></select>
+      </label>
+      <p class="cat-hint" id="catHint"></p>
+      <label>Paid with
+        <select id="fMethod"></select>
+      </label>
+      <p class="warn" id="ruleWarn" hidden></p>
+      <label>Note (optional)
+        <input id="fNote" placeholder="">
+      </label>
+      <div class="actions">
+        <button class="btn primary" type="submit" id="saveBtn">Save</button>
+        <button class="btn" type="button" id="cancelEdit" hidden>Cancel</button>
+        <button class="btn danger" type="button" id="deleteBtn" hidden>Delete</button>
+      </div>
+      <details class="ocr" id="ocrDetails" hidden>
+        <summary>Text read from the receipt</summary>
+        <pre id="ocrText"></pre>
+      </details>
+    </form>
+  </section>
+
+  <!-- Day-to-day categories -->
+  <section class="card">
+    <h2>Day-to-day budget</h2>
+    <p class="muted small">Tap a category to see its spending.</p>
+    <ul class="cats" id="dayCats"></ul>
+  </section>
+
+  <!-- Fixed bills -->
+  <section class="card">
+    <h2>Fixed bills</h2>
+    <p class="muted small" id="billsSub"></p>
+    <ul class="cats" id="billCats"></ul>
+  </section>
+
+  <!-- Log -->
+  <section class="card">
+    <div class="row-between">
+      <h2>Spending log</h2>
+      <button class="chip" id="filterChip" hidden></button>
+    </div>
+    <ul class="log" id="log"></ul>
+    <p class="muted" id="logEmpty">Nothing logged this month yet.</p>
+  </section>
+
+  <!-- Month tools -->
+  <section class="card">
+    <h2>Month tools</h2>
+    <p class="muted small">“Copy totals” gives one number per line, in your category order, ready to paste into the month’s column on the Tracker sheet (start at the first category row).</p>
+    <div class="actions wrap">
+      <button class="btn" id="copyTotals">Copy totals</button>
+      <button class="btn" id="exportCsv">Export CSV</button>
+      <button class="btn" id="openSetup">Setup &amp; backup</button>
+    </div>
+    <textarea id="totalsOut" class="mono" rows="6" readonly hidden></textarea>
+  </section>
+
+  <!-- Setup -->
+  <section class="card" id="setup" hidden>
+    <div class="row-between">
+      <h2>Setup</h2>
+      <button class="icon-btn" id="closeSetup" aria-label="Close setup">✕</button>
+    </div>
+    <p class="muted small" id="firstRunMsg" hidden>Welcome. These are starter categories. Change them to match your budget, or paste a saved setup below, then press Save setup.</p>
+
+    <h3>Monthly money</h3>
+    <div class="grid2">
+      <label>Reliable income (£)
+        <input id="sIncome" inputmode="decimal" placeholder="optional">
+      </label>
+      <label>Saved first (£)
+        <input id="sSavings" inputmode="decimal" placeholder="optional">
+      </label>
+    </div>
+    <p class="muted small">Used for the safety margin: income, less savings, less every cap.</p>
+
+    <h3>Categories and monthly caps</h3>
+    <p class="muted small">Tick “Bill” for fixed bills. Bills are kept out of the left-to-spend figure. The order here is the order of “Copy totals”.</p>
+    <div class="cat-edit-head"><span>Name</span><span>Cap £</span><span>Bill</span><span></span></div>
+    <ul class="cat-edit" id="catEdit"></ul>
+    <button class="btn ghost" id="addCat" type="button">+ Add category</button>
+    <p class="muted small" id="capTotal"></p>
+
+    <h3>Payment methods</h3>
+    <label>One per line, most used first
+      <textarea id="sMethods" rows="5"></textarea>
+    </label>
+
+    <h3>Card rule (optional)</h3>
+    <label>Warn me when this card is used
+      <select id="sRuleCard"></select>
+    </label>
+    <fieldset id="sRuleAllowWrap">
+      <legend>…for anything except</legend>
+      <div id="sRuleAllow" class="checks"></div>
+    </fieldset>
+    <label>Warning text
+      <input id="sRuleText">
+    </label>
+
+    <div class="actions">
+      <button class="btn primary" id="saveSetup" type="button">Save setup</button>
+    </div>
+
+    <h3>Paste a setup</h3>
+    <label>Setup text (JSON)
+      <textarea id="sPaste" class="mono" rows="4" placeholder='{"categories":[...]}'></textarea>
+    </label>
+    <div class="actions wrap">
+      <button class="btn" id="applyPaste" type="button">Use pasted setup</button>
+      <button class="btn" id="copySetup" type="button">Copy my setup</button>
+    </div>
+
+    <h3>Backup</h3>
+    <p class="muted small">Your spending is stored only on this device. Download a backup now and then.</p>
+    <div class="actions wrap">
+      <button class="btn" id="backupBtn" type="button">Download backup</button>
+      <button class="btn" id="restoreBtn" type="button">Restore backup</button>
+      <input type="file" id="restoreInput" accept="application/json,.json" hidden>
+    </div>
+    <p class="muted small" id="storageInfo"></p>
+  </section>
+
+  <p class="foot muted small">Spend Log keeps everything on this device. Nothing is sent anywhere.</p>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="parse.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

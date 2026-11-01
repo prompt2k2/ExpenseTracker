@@ -1,0 +1,7 @@
+# Personal files: never commit these to the public repo
+HANDOFF*.md
+*.xlsx
+*my-setup*.json
+spend-log-backup-*.json
+node_modules/
+test/output/

@@ -1,0 +1,12 @@
+{
+  "name": "spend-log",
+  "private": true,
+  "description": "Tests only. The app itself has no build step.",
+  "scripts": {
+    "test": "node test/parse.test.js",
+    "e2e": "node test/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
+  }
+}
