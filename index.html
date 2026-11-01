@@ -35,6 +35,10 @@
       <div id="marginWrap"><dt>Safety margin</dt><dd id="statMargin">£0</dd></div>
     </dl>
     <p class="note" id="summaryNote" hidden></p>
+    <div class="sync" id="syncLine" hidden>
+      <span id="syncText"></span>
+      <button class="btn small" type="button" id="syncReconnect" hidden>Reconnect</button>
+    </div>
   </section>
 
   <!-- Add / edit -->
@@ -173,6 +177,16 @@
       <button class="btn" id="copySetup" type="button">Copy my setup</button>
     </div>
 
+    <div id="driveSetup" hidden>
+      <h3>Google Drive</h3>
+      <p class="muted small" id="driveInfo"></p>
+      <p class="muted small">The app can only see the one file it creates in your Drive, <code>spend-log-data.json</code>. Connect on each device you use and they stay in step.</p>
+      <div class="actions wrap">
+        <button class="btn primary" id="driveConnect" type="button">Connect Google Drive</button>
+        <button class="btn" id="driveDisconnect" type="button" hidden>Disconnect</button>
+      </div>
+    </div>
+
     <h3>Backup</h3>
     <p class="muted small">Your spending is stored only on this device. Download a backup now and then.</p>
     <div class="actions wrap">
@@ -189,6 +203,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="parse.js"></script>
+<script src="sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

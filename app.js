@@ -7,6 +7,8 @@
   var KEY_CONFIG = 'spendlog.config.v1';
   var KEY_METHOD = 'spendlog.method';
   var KEY_PERSIST = 'spendlog.persistAsked';
+  var KEY_DELETED = 'spendlog.deleted.v1';
+  var KEY_CFGTIME = 'spendlog.configUpdated';
 
   // Generic starter budget. Personal figures are pasted in through Setup, never stored in the code.
   var STARTER = {
@@ -98,6 +100,7 @@
   var config = normaliseConfig(savedConfig || STARTER);
   var items = load(KEY_ITEMS, []);
   if (!Array.isArray(items)) items = [];
+  var deleted = load(KEY_DELETED, {}); // id -> time deleted, so Drive sync can pass deletions on
   var viewMonth = monthOf(todayISO());
   var editingId = null;
   var filterCat = null;
@@ -123,11 +126,16 @@
     return { income: num(c.income), savings: num(c.savings), categories: cats, methods: methods, cardRule: rule };
   }
   function saveItems() {
-    var ok = store(KEY_ITEMS, items);
+    var ok = store(KEY_ITEMS, items) && store(KEY_DELETED, deleted);
     askPersist();
+    if (ok) drive.changed();
     return ok;
   }
-  function saveConfig() { return store(KEY_CONFIG, config); }
+  function saveConfig() {
+    var ok = store(KEY_CONFIG, config) && store(KEY_CFGTIME, Date.now());
+    if (ok) drive.changed();
+    return ok;
+  }
   function askPersist() {
     if (load(KEY_PERSIST, false)) return;
     store(KEY_PERSIST, true);
@@ -491,6 +499,7 @@
     var x = items.find(function (i) { return i.id === editingId; });
     if (!x || !confirm('Delete ' + money(x.pence) + (x.merchant ? ' at ' + x.merchant : '') + '?')) return;
     items = items.filter(function (i) { return i.id !== editingId; });
+    deleted[editingId] = Date.now();
     saveItems();
     resetForm();
     render();
@@ -778,7 +787,7 @@
     var renamed = 0;
     rows.forEach(function (r) {
       if (r.orig && r.orig !== r.n) {
-        items.forEach(function (x) { if (x.category === r.orig) { x.category = r.n; renamed++; } });
+        items.forEach(function (x) { if (x.category === r.orig) { x.category = r.n; x.updated = Date.now(); renamed++; } });
       }
     });
     var methods = $('sMethods').value.split('\n').map(function (m) { return m.trim(); }).filter(Boolean);
@@ -866,6 +875,57 @@
     }
   }
 
+  // ---------- Google Drive ----------
+  var drive = SpendSync.createDrive({
+    clientId: window.SPENDLOG_CLIENT_ID || SpendSync.CLIENT_ID,
+    getLocal: function () {
+      return { items: items, deleted: deleted, config: config, configUpdated: load(KEY_CFGTIME, 0) };
+    },
+    // Merged data from Drive. Saved straight to storage, not through saveItems, so it does not loop.
+    applyLocal: function (d) {
+      items = Array.isArray(d.items) ? d.items : [];
+      deleted = d.deleted || {};
+      store(KEY_ITEMS, items);
+      store(KEY_DELETED, deleted);
+      if (d.config) {
+        var first = !savedConfig;
+        config = normaliseConfig(d.config);
+        savedConfig = config;
+        store(KEY_CONFIG, config);
+        store(KEY_CFGTIME, d.configUpdated || 0);
+        if (first && !$('setup').hidden) closeSetup();
+      }
+      if (editingId && !items.some(function (i) { return i.id === editingId; })) resetForm();
+      else fillSelects();
+      render();
+      if (!$('setup').hidden) showStorageInfo();
+    },
+    onStatus: showDriveStatus
+  });
+
+  function timeOf(ms) { return new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+  function showDriveStatus(s, detail) {
+    var line = $('syncLine'), txt = '', setupTxt = '';
+    switch (s) {
+      case 'connecting': txt = 'Waiting for Google sign-in…'; break;
+      case 'syncing': txt = 'Saving to Google Drive…'; break;
+      case 'synced': txt = '✓ Saved to Google Drive at ' + timeOf(detail || Date.now()); break;
+      case 'reconnect': txt = 'Google Drive needs you to sign in again. Your entries are safe on this phone.' + (detail ? ' ' + detail : ''); break;
+      case 'offline': txt = 'Offline. Changes will go to Google Drive when you are back online.'; break;
+      case 'error': txt = detail || 'Could not reach Google Drive.'; break;
+      default: setupTxt = (detail ? detail + ' ' : '') + 'Not connected. Connect to keep a copy of everything in your Google Drive and get it back on any device.';
+    }
+    var on = drive.isConnected();
+    line.hidden = !on && s !== 'connecting' && s !== 'error';
+    $('syncText').textContent = txt;
+    line.className = 'sync' + (s === 'reconnect' || s === 'error' ? ' attention' : '');
+    $('syncReconnect').hidden = s !== 'reconnect';
+    $('driveInfo').textContent = setupTxt || txt;
+    $('driveConnect').hidden = on && s !== 'reconnect';
+    $('driveConnect').textContent = on ? 'Reconnect Google Drive' : 'Connect Google Drive';
+    $('driveDisconnect').hidden = !on;
+  }
+
   // ---------- wiring ----------
   $('prevMonth').addEventListener('click', function () { viewMonth = shiftMonth(viewMonth, -1); filterCat = null; if (!editingId) resetForm(); render(); });
   $('nextMonth').addEventListener('click', function () { viewMonth = shiftMonth(viewMonth, 1); filterCat = null; if (!editingId) resetForm(); render(); });
@@ -898,10 +958,15 @@
   $('backupBtn').addEventListener('click', backup);
   $('restoreBtn').addEventListener('click', function () { $('restoreInput').click(); });
   $('restoreInput').addEventListener('change', function () { restore(this.files[0]); });
+  $('driveConnect').addEventListener('click', function () { drive.connect(); });
+  $('syncReconnect').addEventListener('click', function () { drive.connect(); });
+  $('driveDisconnect').addEventListener('click', function () {
+    if (confirm('Stop saving to Google Drive? The file stays in your Drive and everything stays on this phone.')) drive.disconnect();
+  });
 
   // Keep in step if the app is open in two tabs.
   window.addEventListener('storage', function (e) {
-    if (e.key === KEY_ITEMS) { items = load(KEY_ITEMS, []); render(); }
+    if (e.key === KEY_ITEMS) { items = load(KEY_ITEMS, []); deleted = load(KEY_DELETED, {}); render(); }
     if (e.key === KEY_CONFIG) { config = normaliseConfig(load(KEY_CONFIG, null) || STARTER); fillSelects(); render(); }
   });
   // Roll over to the new month if the app stays open past midnight.
@@ -913,6 +978,8 @@
   resetForm();
   render();
   if (!savedConfig) openSetup(true);
+  $('driveSetup').hidden = !(window.SPENDLOG_CLIENT_ID || SpendSync.CLIENT_ID);
+  drive.start();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(function () {});
