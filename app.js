@@ -200,6 +200,7 @@
     renderDayCats(s, pace);
     renderBills(s);
     renderLog(s);
+    renderReports(s);
     $('totalsOut').hidden = true;
   }
 
@@ -349,6 +350,230 @@
     filterCat = n;
     render();
     if (n) $('log').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- reports ----------
+  var repTab = 'month';
+  var repYear = +viewMonth.slice(0, 4);
+  var MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function leftText(p) { return p < 0 ? money(-p) + ' over' : money(p); }
+
+  // cells: strings or {t, cls}. kind: '' | 'group' | 'total' | 'total grand'
+  function repRow(tbody, cells, kind) {
+    var tr = el('tr', kind || null);
+    cells.forEach(function (c, i) {
+      var head = i === 0 && !kind;
+      var td = el(head ? 'th' : 'td', typeof c === 'object' ? c.cls : null, typeof c === 'object' ? c.t : c);
+      if (head) td.scope = 'row';
+      if (kind === 'group') td.colSpan = 4;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+  function leftCell(left) { return { t: leftText(left), cls: left < 0 ? 'bad' : '' }; }
+
+  // Rows grouped Day-to-day / Fixed bills / old categories, with subtotals. rows: [{n, fixed, cap, spent}]
+  function fillCatTable(tbody, rows, others) {
+    tbody.textContent = '';
+    var groups = [
+      ['Day-to-day', rows.filter(function (r) { return !r.fixed; })],
+      ['Fixed bills', rows.filter(function (r) { return r.fixed; })],
+      ['No longer in your budget', others.map(function (o) { return { n: o.n, cap: 0, spent: o.spent }; })]
+    ];
+    var cap = 0, spent = 0;
+    groups.forEach(function (g) {
+      if (!g[1].length) return;
+      repRow(tbody, [g[0]], 'group');
+      var gc = 0, gs = 0;
+      g[1].forEach(function (r) {
+        gc += r.cap; gs += r.spent;
+        repRow(tbody, [r.n, moneyShort(r.cap), money(r.spent), leftCell(r.cap - r.spent)]);
+      });
+      cap += gc; spent += gs;
+      if (g[1].length > 1) repRow(tbody, [g[0] + ' total', moneyShort(gc), money(gs), leftCell(gc - gs)], 'total');
+    });
+    repRow(tbody, ['All spending', moneyShort(cap), money(spent), leftCell(cap - spent)], 'total grand');
+  }
+
+  function fillRank(ul, map, limit) {
+    ul.textContent = '';
+    var keys = Object.keys(map).sort(function (a, b) { return map[b].p - map[a].p; }).slice(0, limit);
+    if (!keys.length) { ul.appendChild(el('li', 'muted', 'Nothing yet')); return; }
+    keys.forEach(function (k) {
+      var li = el('li');
+      li.appendChild(el('span', null, k));
+      li.appendChild(el('span', 'num', money(map[k].p) + (map[k].c > 1 ? ' (' + map[k].c + ')' : '')));
+      ul.appendChild(li);
+    });
+  }
+
+  function renderMonthReport(s) {
+    $('repMonthSub').textContent = monthLabel(viewMonth) + '. Bills count once they are logged or marked paid.';
+    fillCatTable($('repMonthTable').tBodies[0], s.rows, s.others);
+    var methods = {}, shops = {}, bills = {};
+    config.categories.forEach(function (c) { if (c.fixed) bills[c.n] = true; });
+    s.items.forEach(function (x) {
+      var m = x.method || 'Not set', k = x.merchant || x.category;
+      (methods[m] = methods[m] || { p: 0, c: 0 }).p += x.pence; methods[m].c++;
+      if (bills[x.category]) return; // bills would crowd out the shops
+      (shops[k] = shops[k] || { p: 0, c: 0 }).p += x.pence; shops[k].c++;
+    });
+    fillRank($('repMethods'), methods, 10);
+    fillRank($('repShops'), shops, 5);
+  }
+
+  // Months that count towards "so far": from the first month with spending to this month
+  // (or December for a past year), so months before you started using the app are left out.
+  function yearData(y) {
+    var thisMonth = monthOf(todayISO()), months = [];
+    for (var i = 1; i <= 12; i++) months.push(y + '-' + pad(i));
+    var first = months.find(function (m) { return items.some(function (x) { return monthOf(x.date) === m; }); });
+    var last = y < +thisMonth.slice(0, 4) ? y + '-12' : thisMonth;
+    var counted = first ? months.filter(function (m) { return m >= first && m <= last; }) : [];
+    var sums = months.map(monthSummary);
+    var rows = config.categories.map(function (c, idx) {
+      var per = sums.map(function (s) { return s.rows[idx].spent; });
+      return { n: c.n, fixed: c.fixed, cap: capPence(c) * counted.length, perMonth: per,
+        spent: per.reduce(function (a, p) { return a + p; }, 0) };
+    });
+    var others = {};
+    sums.forEach(function (s) { s.others.forEach(function (o) { others[o.n] = (others[o.n] || 0) + o.spent; }); });
+    return {
+      months: months, counted: counted, rows: rows,
+      monthCap: config.categories.reduce(function (a, c) { return a + capPence(c); }, 0),
+      others: Object.keys(others).map(function (k) { return { n: k, spent: others[k] }; }),
+      totals: sums.map(function (s) { return s.items.reduce(function (a, x) { return a + x.pence; }, 0); })
+    };
+  }
+
+  function renderYearReport() {
+    var d = yearData(repYear), n = d.counted.length;
+    $('yearLabel').textContent = repYear;
+    $('nextYear').disabled = repYear >= +todayISO().slice(0, 4);
+    $('yearBody').hidden = !n;
+    if (!n) { $('yearSub').textContent = 'No spending logged in ' + repYear + '.'; return; }
+    var name = function (m) { return monthLabel(m).split(' ')[0]; };
+    $('yearSub').textContent = 'Counting ' + name(d.counted[0]) + (n > 1 ? ' to ' + name(d.counted[n - 1]) : '') +
+      ' (' + n + ' month' + (n === 1 ? '' : 's') + '). Budget uses your current caps. Bills count once logged or marked paid.';
+    var spent = d.totals.reduce(function (a, t) { return a + t; }, 0), budget = d.monthCap * n;
+    $('ySpent').textContent = money(spent);
+    $('yBudget').textContent = moneyShort(budget);
+    $('yDiff').textContent = budget < spent ? money(spent - budget) + ' over' : money(budget - spent) + ' under';
+    $('yDiff').classList.toggle('bad', budget < spent);
+    $('yAvg').textContent = money(Math.round(spent / n));
+    drawYearChart(d);
+    var mt = $('yearMonths').tBodies[0];
+    mt.textContent = '';
+    d.counted.forEach(function (m) {
+      var t = d.totals[+m.slice(5) - 1], diff = d.monthCap - t;
+      repRow(mt, [monthLabel(m), money(t), moneyShort(d.monthCap), { t: diff < 0 ? money(-diff) + ' over' : money(diff) + ' under', cls: diff < 0 ? 'bad' : '' }]);
+    });
+    fillCatTable($('yearTable').tBodies[0], d.rows, d.others);
+  }
+
+  function svgEl(tag, attrs, text) {
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function niceStep(max) {
+    var raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+  }
+  function axisMoney(p) {
+    var v = p / 100;
+    return '£' + (v >= 1000 ? +(v / 1000).toFixed(1) + 'k' : Math.round(v));
+  }
+
+  // One series: total spent per month, with the monthly budget as a dashed reference line.
+  function drawYearChart(d) {
+    var box = $('yearChart');
+    box.textContent = '';
+    var W = 360, H = 190, L = 40, R = 8, T = 16, B = 22;
+    var max = Math.max(d.monthCap, Math.max.apply(null, d.totals)) || 10000;
+    var step = niceStep(max * 1.08), top = Math.ceil(max * 1.08 / step) * step;
+    var y = function (p) { return T + (H - T - B) * (1 - p / top); };
+    var slot = (W - L - R) / 12, bw = Math.min(16, slot * 0.55);
+    var s = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img',
+      'aria-label': 'Spending each month in ' + repYear + '. The figures are in the month-by-month table.' });
+    for (var v = 0; v <= top; v += step) {
+      s.appendChild(svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), 'class': 'grid' }));
+      s.appendChild(svgEl('text', { x: L - 6, y: y(v) + 3.5, 'class': 'axis', 'text-anchor': 'end' }, axisMoney(v)));
+    }
+    var tip = el('div', 'tip');
+    tip.hidden = true;
+    var hits = [];
+    d.months.forEach(function (m, i) {
+      var cx = L + slot * i + slot / 2, t = d.totals[i], counted = d.counted.indexOf(m) > -1;
+      s.appendChild(svgEl('text', { x: cx, y: H - 6, 'class': 'axis' + (m === viewMonth ? ' strong' : ''), 'text-anchor': 'middle' }, MONTHS_SHORT[i].charAt(0)));
+      if (t > 0) {
+        var x0 = cx - bw / 2, y0 = y(t), yb = y(0), r = Math.min(4, yb - y0, bw / 2);
+        s.appendChild(svgEl('path', { 'class': 'bar', d: 'M' + x0 + ',' + yb + 'V' + (y0 + r) + 'Q' + x0 + ',' + y0 + ' ' + (x0 + r) + ',' + y0 +
+          'H' + (x0 + bw - r) + 'Q' + (x0 + bw) + ',' + y0 + ' ' + (x0 + bw) + ',' + (y0 + r) + 'V' + yb + 'Z' }));
+      }
+      if (!counted && !t) return;
+      var hit = svgEl('rect', { x: L + slot * i, y: T, width: slot, height: H - T, 'class': 'hit', tabindex: 0, role: 'button',
+        'aria-label': monthLabel(m) + ': ' + money(t) + ' spent. Open this month.' });
+      var show = function () {
+        var diff = d.monthCap - t;
+        tip.textContent = '';
+        tip.appendChild(el('strong', null, monthLabel(m)));
+        tip.appendChild(el('div', null, money(t) + ' spent'));
+        tip.appendChild(el('div', 'muted', diff < 0 ? money(-diff) + ' over budget' : money(diff) + ' under budget'));
+        tip.hidden = false;
+        var pct = cx / W * 100;
+        tip.style.left = pct + '%';
+        tip.style.transform = 'translateX(' + (pct < 25 ? '-10%' : pct > 75 ? '-90%' : '-50%') + ')';
+      };
+      var open = function () {
+        viewMonth = m; filterCat = null; repTab = 'month';
+        if (!editingId) resetForm();
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+      hit.addEventListener('mouseenter', show);
+      hit.addEventListener('focus', show);
+      hit.addEventListener('mouseleave', function () { tip.hidden = true; });
+      hit.addEventListener('blur', function () { tip.hidden = true; });
+      hit.addEventListener('click', open);
+      hit.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      hits.push(hit);
+    });
+    if (d.monthCap > 0) {
+      var yl = y(d.monthCap);
+      s.appendChild(svgEl('line', { x1: L, x2: W - R, y1: yl, y2: yl, 'class': 'ref' }));
+      s.appendChild(svgEl('text', { x: W - R, y: yl - 4, 'class': 'axis ref-label', 'text-anchor': 'end' }, 'Budget ' + axisMoney(d.monthCap)));
+    }
+    hits.forEach(function (h) { s.appendChild(h); }); // on top, so the whole column is tappable
+    box.appendChild(s);
+    box.appendChild(tip);
+  }
+
+  function renderReports(s) {
+    $('repMonthTab').setAttribute('aria-selected', String(repTab === 'month'));
+    $('repYearTab').setAttribute('aria-selected', String(repTab === 'year'));
+    $('repMonth').hidden = repTab !== 'month';
+    $('repYear').hidden = repTab !== 'year';
+    if (repTab === 'month') renderMonthReport(s);
+    else renderYearReport();
+  }
+
+  // Category by month grid for a spreadsheet.
+  function exportYear() {
+    var d = yearData(repYear);
+    if (!d.counted.length) { toast('Nothing to export for ' + repYear); return; }
+    var f = function (p) { return (p / 100).toFixed(2); };
+    var blank = MONTHS_SHORT.map(function () { return ''; });
+    var rows = [['Category', 'Type'].concat(MONTHS_SHORT, ['Total', 'Budget so far', 'Under / (over)'])];
+    d.rows.forEach(function (r) {
+      rows.push([r.n, r.fixed ? 'Bill' : 'Day-to-day'].concat(r.perMonth.map(f), [f(r.spent), f(r.cap), f(r.cap - r.spent)]));
+    });
+    d.others.forEach(function (o) { rows.push([o.n, 'Old category'].concat(blank, [f(o.spent), '0.00', f(-o.spent)])); });
+    var total = d.totals.reduce(function (a, t) { return a + t; }, 0), budget = d.monthCap * d.counted.length;
+    rows.push(['All spending', ''].concat(d.totals.map(f), [f(total), f(budget), f(budget - total)]));
+    saveFile('spend-log-' + repYear + '.csv', rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n'), 'text/csv');
   }
 
   // ---------- form ----------
@@ -944,6 +1169,11 @@
   $('scanPick').addEventListener('change', function () { onScan(this.files[0]); });
   $('copyTotals').addEventListener('click', copyTotals);
   $('exportCsv').addEventListener('click', exportCsv);
+  $('repMonthTab').addEventListener('click', function () { repTab = 'month'; render(); });
+  $('repYearTab').addEventListener('click', function () { repTab = 'year'; repYear = +viewMonth.slice(0, 4); render(); });
+  $('prevYear').addEventListener('click', function () { repYear--; render(); });
+  $('nextYear').addEventListener('click', function () { repYear++; render(); });
+  $('exportYear').addEventListener('click', exportYear);
   $('openSetup').addEventListener('click', function () { openSetup(false); });
   $('closeSetup').addEventListener('click', closeSetup);
   $('addCat').addEventListener('click', function () {

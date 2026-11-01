@@ -111,6 +111,70 @@
     <p class="muted" id="logEmpty">Nothing logged this month yet.</p>
   </section>
 
+  <!-- Reports -->
+  <section class="card" id="reports">
+    <div class="row-between">
+      <h2>Reports</h2>
+      <div class="seg" role="tablist" aria-label="Report period">
+        <button type="button" role="tab" id="repMonthTab" aria-selected="true">Month</button>
+        <button type="button" role="tab" id="repYearTab" aria-selected="false">Year</button>
+      </div>
+    </div>
+
+    <div id="repMonth" role="tabpanel" aria-labelledby="repMonthTab">
+      <p class="muted small" id="repMonthSub"></p>
+      <table class="rep" id="repMonthTable">
+        <thead><tr><th>Category</th><th>Budget</th><th>Spent</th><th>Left</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="rep-cols">
+        <div>
+          <h3>By payment method</h3>
+          <ul class="rep-list" id="repMethods"></ul>
+        </div>
+        <div>
+          <h3>Top shops (day-to-day)</h3>
+          <ul class="rep-list" id="repShops"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div id="repYear" role="tabpanel" aria-labelledby="repYearTab" hidden>
+      <div class="year-nav">
+        <button class="icon-btn" id="prevYear" aria-label="Previous year">‹</button>
+        <strong id="yearLabel"></strong>
+        <button class="icon-btn" id="nextYear" aria-label="Next year">›</button>
+      </div>
+      <p class="muted small" id="yearSub"></p>
+      <div id="yearBody">
+        <dl class="stats">
+          <div><dt>Spent so far</dt><dd id="ySpent">£0</dd></div>
+          <div><dt>Budget so far</dt><dd id="yBudget">£0</dd></div>
+          <div><dt>Under / over budget</dt><dd id="yDiff">£0</dd></div>
+          <div><dt>Average a month</dt><dd id="yAvg">£0</dd></div>
+        </dl>
+        <h3>Spent each month</h3>
+        <div class="chart" id="yearChart"></div>
+        <p class="muted small">Tap a month to open it.</p>
+        <details class="rep-details">
+          <summary>Month-by-month figures</summary>
+          <table class="rep" id="yearMonths">
+            <thead><tr><th>Month</th><th>Spent</th><th>Budget</th><th>Under / over</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </details>
+        <h3>Categories so far this year</h3>
+        <table class="rep" id="yearTable">
+          <thead><tr><th>Category</th><th>Budget</th><th>Spent</th><th>Left</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="actions wrap">
+          <button class="btn" id="exportYear" type="button">Export year CSV</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Month tools -->
   <section class="card">
     <h2>Month tools</h2>

@@ -214,6 +214,54 @@ try {
     await page.screenshot({ path: path.join(outDir, 'phone.png'), fullPage: true });
   });
 
+  await check('month and year reports add up', async () => {
+    const c3 = await browser.newContext({ viewport: { width: 400, height: 860 }, acceptDownloads: true });
+    // Up to three months of the same spending, all inside the current year.
+    const ms = [0, 1, 2].map(k => { const d = new Date(now.getFullYear(), now.getMonth() - k, 1); return d; })
+      .filter(d => d.getFullYear() === now.getFullYear())
+      .map(d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`);
+    let n = 0;
+    const it = (m, pence, merchant, category, method) => ({ id: 'x' + (n++), pence, date: m + '-01', merchant, category, method, note: '', created: n, updated: n });
+    const seed = ms.flatMap(m => [it(m, 30000, 'Tesco', 'Groceries', 'Debit'), it(m, 7000, 'Uber', 'Transport', 'Amex'), it(m, 70000, 'Rent', 'Rent', 'Debit')]);
+    await c3.addInitScript(([cfg, its]) => {
+      if (!localStorage.getItem('spendlog.items.v1')) {
+        localStorage.setItem('spendlog.config.v1', cfg);
+        localStorage.setItem('spendlog.items.v1', its);
+      }
+    }, [JSON.stringify(SETUP), JSON.stringify(seed)]);
+    const p3 = await c3.newPage();
+    await p3.goto(base);
+    const body = async sel => (await p3.locator(sel).innerText()).replace(/\s+/g, ' ');
+
+    const month = await body('#repMonthTable');
+    assert.match(month, /Groceries £400 £300\.00 £100\.00/);
+    assert.match(month, /Transport £50 £70\.00 £20\.00 over/);
+    assert.match(month, /All spending £1,400 £1,070\.00 £330\.00/);
+    assert.match(await body('#repMethods'), /Debit £1,000\.00 \(2\) Amex £70\.00/);
+    assert.strictEqual(await body('#repShops'), 'Tesco £300.00 Uber £70.00');
+
+    await p3.click('#repYearTab');
+    const k = ms.length;
+    assert.match(await body('#yearSub'), new RegExp(`\\(${k} months?\\)`));
+    assert.strictEqual(await body('#ySpent'), '£' + (1070 * k).toLocaleString('en-GB') + '.00');
+    assert.strictEqual(await body('#yDiff'), '£' + (330 * k).toLocaleString('en-GB') + '.00 under');
+    assert.strictEqual(await p3.locator('#yearChart .bar').count(), k);
+    assert.match(await body('#yearTable'), new RegExp(`Transport £${50 * k} £${70 * k}\\.00 £${20 * k}\\.00 over`));
+
+    const dl = p3.waitForEvent('download');
+    await p3.click('#exportYear');
+    const csv = fs.readFileSync(await (await dl).path(), 'utf8').split('\r\n');
+    assert.strictEqual(csv[0].split(',').length, 17);
+    assert.ok(csv.some(l => l.startsWith('Groceries,Day-to-day,') && l.endsWith(`,${(300 * k).toFixed(2)},${(400 * k).toFixed(2)},${(100 * k).toFixed(2)}`)), 'groceries row');
+
+    await p3.screenshot({ path: path.join(outDir, 'reports-year.png'), fullPage: true });
+    const first = ms[ms.length - 1];
+    await p3.locator('#yearChart .hit').first().click();
+    assert.strictEqual(await body('#monthLabel'), new Date(first + '-01T12:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }));
+    assert.ok(await p3.locator('#repMonth').isVisible());
+    await c3.close();
+  });
+
   await check('a mixed-up load shows Reload app, which recovers', async () => {
     const c2 = await browser.newContext({ viewport: { width: 400, height: 860 } });
     let broken = true;
